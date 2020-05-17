@@ -132,9 +132,9 @@ system system_i (
     .hp0_awcache(hp0_awcache),
   //  .hp0_awid(hp0_awid),
     .hp0_awlen(hp0_awlen),
-    .hp0_awlock(hp0_awlock),
+    //.hp0_awlock(hp0_awlock),
     .hp0_awprot(hp0_awprot),
-    .hp0_awqos(hp0_awqos),
+    //.hp0_awqos(hp0_awqos),
     .hp0_awready(hp0_awready),
     .hp0_awsize(hp0_awsize),
     .hp0_awvalid(hp0_awvalid),
@@ -199,6 +199,10 @@ assign cfg_ram_byte_ena = 4'b1111;
 //--------------------------------------------
 // data mover
 //--------------------------------------------
+wire    [7:0]   m_axis_mm2s_sts_tdata;
+wire            m_axis_mm2s_sts_tkeep;
+wire            m_axis_mm2s_sts_tlast;
+wire            m_axis_mm2s_sts_tvalid;
 
 datamover datamover_hp0 (
     .m_axi_mm2s_aclk(sys_clk_200),                        // input wire m_axi_mm2s_aclk
@@ -208,11 +212,11 @@ datamover datamover_hp0 (
     .m_axis_mm2s_cmdsts_aclk(sys_clk_200),        // input wire m_axis_mm2s_cmdsts_aclk
     .m_axis_mm2s_cmdsts_aresetn(~rst_200),  // input wire m_axis_mm2s_cmdsts_aresetn
     
-    .m_axis_mm2s_sts_tvalid(),          // output wire m_axis_mm2s_sts_tvalid
+    .m_axis_mm2s_sts_tvalid(m_axis_mm2s_sts_tvalid),          // output wire m_axis_mm2s_sts_tvalid
     .m_axis_mm2s_sts_tready(1'b1),          // input wire m_axis_mm2s_sts_tready
-    .m_axis_mm2s_sts_tdata(),            // output wire [7 : 0] m_axis_mm2s_sts_tdata
-    .m_axis_mm2s_sts_tkeep(),            // output wire [0 : 0] m_axis_mm2s_sts_tkeep
-    .m_axis_mm2s_sts_tlast(),            // output wire m_axis_mm2s_sts_tlast
+    .m_axis_mm2s_sts_tdata(m_axis_mm2s_sts_tdata),            // output wire [7 : 0] m_axis_mm2s_sts_tdata
+    .m_axis_mm2s_sts_tkeep(m_axis_mm2s_sts_tkeep),            // output wire [0 : 0] m_axis_mm2s_sts_tkeep
+    .m_axis_mm2s_sts_tlast(m_axis_mm2s_sts_tlast),            // output wire m_axis_mm2s_sts_tlast
 
     //AXI4 read addr interface
 
@@ -257,7 +261,7 @@ datamover datamover_hp0 (
     .m_axis_s2mm_sts_tlast(user_s2mm_sts_tlast),            // output wire m_axis_s2mm_sts_tlast
     // AXI4 addr interface
    
-    .m_axi_s2mm_awid(hp0_awid),                        // output wire [3 : 0] m_axi_s2mm_awid
+    //.m_axi_s2mm_awid(hp0_awid),                        // output wire [3 : 0] m_axi_s2mm_awid
     .m_axi_s2mm_awaddr(hp0_awaddr),                    // output wire [31 : 0] m_axi_s2mm_awaddr
     .m_axi_s2mm_awlen(hp0_awlen),                      // output wire [7 : 0] m_axi_s2mm_awlen
     .m_axi_s2mm_awsize(hp0_awsize),                    // output wire [2 : 0] m_axi_s2mm_awsize
@@ -315,13 +319,13 @@ vio_datamover vio_datamover_inst (
 
 assign dm_start = dm_start_vio | led1_r0;
 
-always @(posedge clk) begin
+always @(posedge sys_clk_200) begin
     dm_start_vio_r0 <= dm_start_vio;
     dm_start_vio_p <= ~dm_start_vio_r0 & dm_start_vio;
 end
 
-always @(posedge clk) begin
-    if (rst) begin
+always @(posedge sys_clk_200) begin
+    if (rst_200) begin
         dm_length <= 'h0;
         dm_start_addr <= 'h0;
     end else begin
@@ -393,7 +397,11 @@ ila_datamover ila_datamover_inst (
 	.probe15(user_mm2s_rd_cmd_tvalid), // input wire [0:0]  probe15 
 	.probe16(user_mm2s_rd_cmd_tdata), // input wire [71:0]  probe16 
 	.probe17(user_mm2s_rd_cmd_tready), // input wire [0:0]  probe17
-	.probe18(rst_200)
+	.probe18(rst_200),
+    .probe19(m_axis_mm2s_sts_tkeep), // input wire [0:0]  probe19 
+	.probe20(m_axis_mm2s_sts_tlast), // input wire [0:0]  probe20 
+	.probe21(m_axis_mm2s_sts_tvalid), // input wire [0:0]  probe21 
+	.probe22(m_axis_mm2s_sts_tdata) // input wire [7:0]  probe22
 );
 
 
