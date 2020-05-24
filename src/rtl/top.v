@@ -14,6 +14,8 @@ wire        rst_200;
 wire        interrupt;
 wire [3:0]  gpio;
 
+reg [27:0]  cnt;
+
 //---------------------------------------------------
 // cfg ram signals
 // -------------------------------------------------- 
@@ -105,11 +107,25 @@ IBUFDS #(
     .IB(sys_clk_n) // Diff_n buffer input (connect directly to top-level port)
 );
 
+always @(posedge sys_clk_200) begin
+    if (rst_200) begin
+        cnt <= 'h0;
+    end else begin
+        if (cnt == 28'hBEBC200) begin
+            cnt <= 'h0;
+        end else begin
+            cnt <= cnt + 1'd1;
+        end
+    end
+end
+
+assign led_tri_o[3] = cnt[27];
+
 //--------------------------------------------
 // block design
 //--------------------------------------------
 
-assign led_tri_o = gpio[3:0];
+assign led_tri_o[2:0] = gpio[2:0];
 assign interrupt = gpio[2];
 
 system system_i (
