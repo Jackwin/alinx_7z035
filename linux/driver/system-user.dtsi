@@ -1,0 +1,23 @@
+/include/ "system-conf.dtsi"
+/ {
+   reserved-memory {
+      #address-cells = <1>;
+      #size-cells = <1>;
+      ranges;
+  
+      reserved: buffer@0x38000000 {
+         no-map;
+         reg = <0x38000000 0x80>;
+      };
+   };
+  
+   fbga-driver@0 {
+      compatible = "vendor,fbga_drv";
+      interrupt-parent = <&intc>;
+	  interrupts = <0 30 4>;
+      memory-region = <&reserved>;
+
+   };
+
+
+};

@@ -14,6 +14,8 @@ wire        rst_200;
 wire        interrupt;
 wire [3:0]  gpio;
 
+reg [27:0]  cnt;
+
 //---------------------------------------------------
 // cfg ram signals
 // -------------------------------------------------- 
@@ -105,6 +107,7 @@ IBUFDS #(
     .IB(sys_clk_n) // Diff_n buffer input (connect directly to top-level port)
 );
 
+
 //---------------------------------------------------
 // fpga device management
 // --------------------------------------------------
@@ -129,14 +132,16 @@ wire [31:0]                 version;
 wire                        soft_rst;
 wire                        fclk_100;
 wire                        rst_fclk;
-logic                       led_ctrl;
+reg                         led_ctrl;
 
 //--------------------------------------------
 // block design
 //--------------------------------------------
 
 assign led_tri_o[2:0] = gpio[2:0];
+
 assign led_tri_o[3] = gpio[3] | led_ctrl;
+
 assign interrupt = gpio[2];
 
 system system_i (
@@ -226,7 +231,7 @@ control register address:
 localparam LED_REG = 'h40;
 
 
-always_ff @(posedge fclk_100) begin
+always @(posedge fclk_100) begin
     if (rst_fclk) begin
         led_ctrl <= 0;
     end else begin
