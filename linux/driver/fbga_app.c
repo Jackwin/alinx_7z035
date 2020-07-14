@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
+
 void my_signal_fun(int signum){
     static int cnt;
     printf("signal = %d, %d times\n",signum, ++cnt);
@@ -30,18 +31,19 @@ int main(int argc, char **argv)
     flags = fcntl(fd, F_GETFL);
     fcntl(fd, F_SETFL, flags | FASYNC);
 
+    //write operation
+    for(i=0;i<4;i++)
+    {
+        //val = (1<<i);
+        write(fd,val,16); //write val to fd device, size is 4 byte
+        sleep(4);
+        read(fd,rdata,4); //read fd device to rdata, size is 4 byte
+        printf("\nrdata is : %08x\n", *(int*)rdata);
+        sleep(1);
+    }
     while(1){
         sleep(1);
     }
-//	//write operation
-//	for(i=0;i<4;i++)
-//	{
-//		//val = (1<<i);
-//		write(fd,val,16); //write val to fd device, size is 4 byte
-//		//read(fd,rdata,4); //read fd device to rdata, size is 4 byte
-//		printf("\nrdata is : %s\n", rdata);
-//		sleep(1);
-//	}
     close(fd);
 	return 0;
 }

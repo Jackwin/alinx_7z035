@@ -7,6 +7,8 @@
 #define CASE1 1
 #define CASE2 2
 
+#define MAX_CONFIG_RAM  0xFFF
+
 struct fbga_drv
 {
     struct platform_device *pdev;
@@ -14,6 +16,15 @@ struct fbga_drv
     struct class *fb_class;
     struct cdev fb_cdev;
     void __iomem *paddr;
+    void __iomem *paddr2;
     void __iomem *vaddr;
+    void __iomem *vaddr2;
     int irq;
 };
+
+struct memory_data {
+	char magic[20];
+	struct fbga_drv *fdev;
+	atomic_t refcnt;
+};
+

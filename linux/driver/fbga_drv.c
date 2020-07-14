@@ -42,45 +42,49 @@ int fbga_drv_release(struct inode *inode, struct file *filp)
 
 static ssize_t fbga_drv_read(struct file *filp, char __user *buf, size_t size, loff_t *ppos)
 {
-    unsigned int count = size;
+//测试读配置内存，读指定大小数据
+    unsigned int count = (size > MAX_CONFIG_RAM) ? MAX_CONFIG_RAM : size;
     unsigned int ret = 0;
-
+unsigned int *p0 = (unsigned int*)(fb_drv->vaddr);
+unsigned int *p1 = (unsigned int*)(fb_drv->vaddr2);
+printk("p0:0x%08x,0x%08x,0x%08x, p1:0x%08x,0x%08x,0x%08x,\n", p0[0],p0[1],p0[2], p1[0],p1[1],p1[2]);
+printk("count:%d\n", count);
     if(copy_to_user(buf, (void*)(fb_drv->vaddr), count))
     {
 	    ret = -EINVAL;
     }
     
-    return ret;
+    return count;
 }
 
 static ssize_t fbga_drv_write(struct file *filp,const char __user *buf, size_t size, loff_t *ppos)
 {
+//测试写配置内存，只写前四个字节
     //unsigned int count = size;
     unsigned int rdata;
     unsigned int ret = 0;
     char buf_tmp[16];
     memset(buf_tmp,0,16);
 
+    printk("write size:%d\n", size);
     if(copy_from_user((char *)buf_tmp, buf, 16))
     {
 	    ret = -EINVAL;
     }
 
     printk("\nbuf_tmp[0]=0x%x\n",(unsigned int)buf_tmp[0]);
-    printk("\n");
-    
     
     iowrite32((unsigned int)buf_tmp[0], fb_drv->vaddr);
 
     rdata=ioread32(fb_drv->vaddr);
-    printk("read mem after copy_from_user, rdata = %x\n\n", rdata);
+    printk("read mem after copy_from_user, rdata = %x\n", rdata);
     
-    return ret;
+    return size;
 }
 
 static int fbga_fasync (int fd, struct file *filp, int on)
 {
-    printk("\n\ndriver: fbga_fasync\n\n");
+    printk("\n: fbga_fasync\n");
     return fasync_helper(fd, filp, on, &fb_async);
 }
 
@@ -103,6 +107,39 @@ static long fbga_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
     return 0;
 }
 
+void data_vma_open(struct vm_area_struct *vma)
+{
+    printk(KERN_NOTICE "Simple VMA open, virt %lx, phys %lx\n",
+                            vma->vm_start, vma->vm_pgoff << PAGE_SHIFT);
+}
+
+void data_vma_close(struct vm_area_struct *vma)
+{
+    printk(KERN_NOTICE "Simple VMA close.\n");
+}
+
+static struct vm_operations_struct data_remap_vm_ops = {
+    .open =  data_vma_open,
+    .close = data_vma_close,
+
+};
+
+int fbga_mmap(struct file *file, struct vm_area_struct *vma) {
+    struct inode *inode = file_inode(file);
+    struct fbga_drv *fdev = container_of(inode->i_cdev, struct fbga_drv, fb_cdev);
+
+
+    if (remap_pfn_range(vma, vma->vm_start, (uint64_t)(fdev->paddr) >> PAGE_SHIFT, vma->vm_end - vma->vm_start, vma->vm_page_prot)) {
+        printk("remap paddr failed\n");
+        return -EAGAIN;
+    }
+
+    vma->vm_ops = &data_remap_vm_ops;
+    data_vma_open(vma);
+    return 0;
+}
+
+
 static const struct file_operations fbga_drv_fops=
 {
     .owner = THIS_MODULE,
@@ -112,6 +149,7 @@ static const struct file_operations fbga_drv_fops=
     .write = fbga_drv_write,
     .fasync = fbga_fasync,
     .unlocked_ioctl = fbga_ioctl,
+    .mmap = fbga_mmap,
 };
 
 
@@ -128,6 +166,7 @@ static int fbga_drv_probe(struct platform_device *pdev)
     struct resource r_mem;
     struct device_node *np;
     
+	printk("fbga_drv probing\n");
     struct device *dev = &pdev->dev;
     //struct axidma_local *lp = NULL;
     
@@ -160,15 +199,29 @@ static int fbga_drv_probe(struct platform_device *pdev)
     }
   
     fb_drv->paddr = (void*)r_mem.start;
-
-    printk("\n\nStart map the paddr and vaddr\n\n");
-
     fb_drv->vaddr = memremap(r_mem.start, resource_size(&r_mem), MEMREMAP_WB);
+    printk("\nStart map the paddr:%08x and vaddr:%08x\n", r_mem.start, fb_drv->vaddr);
     if(!fb_drv->vaddr) 
     {
         dev_err(dev, "cannot map the mem\n");
 		goto error_handle1;
     }
+
+rc = of_address_to_resource(np, 1, &r_mem);
+if (rc) {
+    dev_err(dev, "No memory address assigned to the region\n");
+    return -EINVAL;
+}
+
+fb_drv->paddr2 = (void*)r_mem.start;
+fb_drv->vaddr2 = memremap(r_mem.start, resource_size(&r_mem), MEMREMAP_WB);
+printk("\nStart map the paddr:%08x and vaddr:%08x\n", r_mem.start, fb_drv->vaddr2);
+if(!fb_drv->vaddr2) 
+{
+    dev_err(dev, "cannot map the mem\n");
+    goto error_handle1;
+}
+
 
     dev_info(dev, "Allocated reserved memory, vaddr: 0x%p, paddr: 0x%p\n", fb_drv->vaddr, fb_drv->paddr);
 

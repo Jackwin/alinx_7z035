@@ -5,16 +5,16 @@
       #size-cells = <1>;
       ranges;
   
-      reserved: buffer@0x38000000 {
+      reserved: buffer@0x40000000 {
          no-map;
-         reg = <0x38000000 0x80>;
+         reg = <0x40000000 0x800 0x0 0x10>;
       };
    };
   
    fbga-driver@0 {
       compatible = "vendor,fbga_drv";
       interrupt-parent = <&intc>;
-	  interrupts = <0 30 4>;
+	  interrupts = <0 29 4>;
       memory-region = <&reserved>;
 
    };
