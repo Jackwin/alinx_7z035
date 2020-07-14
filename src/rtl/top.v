@@ -401,7 +401,7 @@ always @(posedge sys_clk_200) begin
     end else begin
         if (dm_start_led1) begin
             dm_length <= 9'h080;
-            dm_start_addr <= 'h0;
+            dm_start_addr <= 32'h3000_0000;
         end else if (dm_start_vio_p) begin
             dm_length <= dm_length_vio;
             dm_start_addr<= dm_start_addr_vio;
