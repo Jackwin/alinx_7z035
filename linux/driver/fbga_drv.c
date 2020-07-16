@@ -49,6 +49,7 @@ unsigned int *p0 = (unsigned int*)(fb_drv->vaddr);
 unsigned int *p1 = (unsigned int*)(fb_drv->vaddr2);
 printk("p0:0x%08x,0x%08x,0x%08x, p1:0x%08x,0x%08x,0x%08x,\n", p0[0],p0[1],p0[2], p1[0],p1[1],p1[2]);
 printk("count:%d\n", count);
+
     if(copy_to_user(buf, (void*)(fb_drv->vaddr), count))
     {
 	    ret = -EINVAL;
@@ -139,7 +140,6 @@ int fbga_mmap(struct file *file, struct vm_area_struct *vma) {
     return 0;
 }
 
-
 static const struct file_operations fbga_drv_fops=
 {
     .owner = THIS_MODULE,
@@ -221,7 +221,6 @@ if(!fb_drv->vaddr2)
     dev_err(dev, "cannot map the mem\n");
     goto error_handle1;
 }
-
 
     dev_info(dev, "Allocated reserved memory, vaddr: 0x%p, paddr: 0x%p\n", fb_drv->vaddr, fb_drv->paddr);
 
