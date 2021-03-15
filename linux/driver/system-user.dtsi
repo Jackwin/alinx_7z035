@@ -5,9 +5,9 @@
       #size-cells = <1>;
       ranges;
   
-      reserved: buffer@0x40000000 {
+      reserved: map_fpga@0x40000000 {
          no-map;
-         reg = <0x40000000 0x800 0x0 0x10>;
+         reg = <0x40000000 0xFFF 0x30000000 0xFF 0x43C00000 0xFFF>;
       };
    };
   
@@ -16,6 +16,5 @@
       interrupt-parent = <&intc>;
 	  interrupts = <0 29 4>;
       memory-region = <&reserved>;
-
    };
 };

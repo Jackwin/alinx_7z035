@@ -26,7 +26,7 @@
 //module_param(mystr, charp, S_IRUGO);
 
 static struct fasync_struct *fb_async = NULL;
-struct fbga_drv *fb_drv;
+struct fbga_drv *fb_drv = NULL;
 
 int fbga_drv_open(struct inode * inode, struct file *filp)
 {
@@ -44,42 +44,52 @@ static ssize_t fbga_drv_read(struct file *filp, char __user *buf, size_t size, l
 {
 //测试读配置内存，读指定大小数据
     unsigned int count = (size > MAX_CONFIG_RAM) ? MAX_CONFIG_RAM : size;
+    /*
     unsigned int ret = 0;
-unsigned int *p0 = (unsigned int*)(fb_drv->vaddr);
-unsigned int *p1 = (unsigned int*)(fb_drv->vaddr2);
-printk("p0:0x%08x,0x%08x,0x%08x, p1:0x%08x,0x%08x,0x%08x,\n", p0[0],p0[1],p0[2], p1[0],p1[1],p1[2]);
-printk("count:%d\n", count);
+    printk("count:%d\n", count);
 
-    if(copy_to_user(buf, (void*)(fb_drv->vaddr), count))
+    unsigned int *p0 = (unsigned int*)(fb_drv->vaddr_bram);
+    unsigned int *p1 = (unsigned int*)(fb_drv->vaddr_devm);
+    printk("p0:0x%08x,0x%08x,0x%08x\n", p0[0],p0[1],p0[2]);
+    printk("p1:0x%08x,0x%08x,0x%08x\n", p1[0],p1[1],p1[2]);
+
+    if(copy_to_user(buf, (void*)(fb_drv->vaddr_bram), count))
     {
 	    ret = -EINVAL;
     }
+    */
     
+    if(copy_to_user(buf, (void*)(fb_drv->vaddr_bram), count)) {
+	    return -EINVAL;
+    }
     return count;
 }
 
 static ssize_t fbga_drv_write(struct file *filp,const char __user *buf, size_t size, loff_t *ppos)
 {
-//测试写配置内存，只写前四个字节
-    //unsigned int count = size;
+    unsigned int count = (size > MAX_CONFIG_RAM) ? MAX_CONFIG_RAM : size;
+    /*
     unsigned int rdata;
     unsigned int ret = 0;
     char buf_tmp[16];
     memset(buf_tmp,0,16);
 
     printk("write size:%d\n", size);
-    if(copy_from_user((char *)buf_tmp, buf, 16))
-    {
+    if(copy_from_user((char *)buf_tmp, buf, 16)) {
 	    ret = -EINVAL;
     }
 
     printk("\nbuf_tmp[0]=0x%x\n",(unsigned int)buf_tmp[0]);
     
-    iowrite32((unsigned int)buf_tmp[0], fb_drv->vaddr);
+    iowrite32((unsigned int)buf_tmp[0], fb_drv->vaddr_bram);
 
-    rdata=ioread32(fb_drv->vaddr);
+    rdata=ioread32(fb_drv->vaddr_bram);
     printk("read mem after copy_from_user, rdata = %x\n", rdata);
+    */
     
+    if(copy_from_user((char *)(fb_drv->vaddr_bram), buf, count)) {
+	    return -EINVAL;
+    }
     return size;
 }
 
@@ -91,6 +101,9 @@ static int fbga_fasync (int fd, struct file *filp, int on)
 
 static long fbga_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
+    void __user *argp = (void __user*)arg;
+    struct devm_data devmd;
+    int32_t reg;
     switch(cmd)
     {
         case CASE0:
@@ -102,6 +115,17 @@ static long fbga_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
         case CASE2:
 //            beep_freq( arg );
             break;
+        case IOCMD_DEVM_GET:
+            copy_from_user((char*)(&devmd), argp, sizeof(devmd));
+            reg = fb_drv->vaddr_devm + devmd.reg_off;
+            devmd.val = ioread32(reg);
+            copy_to_user((char*)(&devmd), argp, sizeof(devmd));
+            break;
+        case IOCMD_DEVM_SET:
+            copy_from_user((char*)(&devmd), argp, sizeof(devmd));
+            reg = fb_drv->vaddr_devm + devmd.reg_off;
+            iowrite32(devmd.val, reg);
+            break;
         default :
             return -EINVAL;
     }
@@ -112,29 +136,42 @@ void data_vma_open(struct vm_area_struct *vma)
 {
     printk(KERN_NOTICE "Simple VMA open, virt %lx, phys %lx\n",
                             vma->vm_start, vma->vm_pgoff << PAGE_SHIFT);
+    struct memory_data *md = (struct memory_data*)(vma->vm_private_data);
+    atomic_inc(&(md->refcnt));
 }
 
 void data_vma_close(struct vm_area_struct *vma)
 {
     printk(KERN_NOTICE "Simple VMA close.\n");
+    if (vma->vm_private_data == NULL) {
+        printk(KERN_ALERT, "Wrong VMA !!! private data not set!\n");
+        return;
+    }
+    struct memory_data *md = (struct memory_data*)(vma->vm_private_data);
+    if (!atomic_dec_and_test(&(md->refcnt))) {
+        return;
+    }
+    struct fbga_drv *fdev = md->fdev;
+    kfree(md);
 }
 
 static struct vm_operations_struct data_remap_vm_ops = {
     .open =  data_vma_open,
     .close = data_vma_close,
-
 };
 
 int fbga_mmap(struct file *file, struct vm_area_struct *vma) {
     struct inode *inode = file_inode(file);
     struct fbga_drv *fdev = container_of(inode->i_cdev, struct fbga_drv, fb_cdev);
 
-
-    if (remap_pfn_range(vma, vma->vm_start, (uint64_t)(fdev->paddr) >> PAGE_SHIFT, vma->vm_end - vma->vm_start, vma->vm_page_prot)) {
+    if (remap_pfn_range(vma, vma->vm_start, (uint64_t)(fdev->paddr_data) >> PAGE_SHIFT, vma->vm_end - vma->vm_start, vma->vm_page_prot)) {
         printk("remap paddr failed\n");
         return -EAGAIN;
     }
+    struct memory_data *md = kmalloc(sizeof(struct memory_data), GFP_KERNEL);
+    atomic_set(&(md->refcnt), 1);
 
+    vma->vm_private_data = (void*)md;
     vma->vm_ops = &data_remap_vm_ops;
     data_vma_open(vma);
     return 0;
@@ -184,6 +221,7 @@ static int fbga_drv_probe(struct platform_device *pdev)
 		dev_err(dev, "unable to allocate device structure\n");
 		return -ENOMEM;
 	}
+    memset(fb_drv, 0, sizeof(fb_drv));
 
     /* Get reserved memory region from Device-tree */
     np = of_parse_phandle(dev->of_node, "memory-region", 0);
@@ -198,31 +236,42 @@ static int fbga_drv_probe(struct platform_device *pdev)
 		return -EINVAL;
     }
   
-    fb_drv->paddr = (void*)r_mem.start;
-    fb_drv->vaddr = memremap(r_mem.start, resource_size(&r_mem), MEMREMAP_WB);
-    printk("\nStart map the paddr:%08x and vaddr:%08x\n", r_mem.start, fb_drv->vaddr);
-    if(!fb_drv->vaddr) 
+    fb_drv->paddr_bram = (void*)r_mem.start;
+    fb_drv->vaddr_bram = memremap(r_mem.start, resource_size(&r_mem), MEMREMAP_WB);
+    printk("\nStart map the bram paddr:%08x and vaddr:%08x\n", r_mem.start, fb_drv->vaddr_bram);
+    if(!fb_drv->vaddr_bram) 
     {
         dev_err(dev, "cannot map the mem\n");
 		goto error_handle1;
     }
 
-rc = of_address_to_resource(np, 1, &r_mem);
-if (rc) {
-    dev_err(dev, "No memory address assigned to the region\n");
-    return -EINVAL;
-}
+    rc = of_address_to_resource(np, 1, &r_mem);
+    if (rc) {
+        dev_err(dev, "No memory address assigned to the region\n");
+        return -EINVAL;
+    }
+    fb_drv->paddr_data = (void*)r_mem.start;
+    fb_drv->vaddr_data = memremap(r_mem.start, resource_size(&r_mem), MEMREMAP_WB);
+    dev_info(dev, "Allocated reserved memory, vaddr: 0x%p, paddr: 0x%p\n", fb_drv->vaddr_data, fb_drv->paddr_data);
+    if(!fb_drv->vaddr_data) 
+    {
+        dev_err(dev, "cannot map the mem\n");
+        goto error_handle1;
+    }
 
-fb_drv->paddr2 = (void*)r_mem.start;
-fb_drv->vaddr2 = memremap(r_mem.start, resource_size(&r_mem), MEMREMAP_WB);
-printk("\nStart map the paddr:%08x and vaddr:%08x\n", r_mem.start, fb_drv->vaddr2);
-if(!fb_drv->vaddr2) 
-{
-    dev_err(dev, "cannot map the mem\n");
-    goto error_handle1;
-}
-
-    dev_info(dev, "Allocated reserved memory, vaddr: 0x%p, paddr: 0x%p\n", fb_drv->vaddr, fb_drv->paddr);
+    rc = of_address_to_resource(np, 2, &r_mem);
+    if (rc) {
+        dev_err(dev, "No memory address assigned to the region\n");
+        return -EINVAL;
+    }
+    fb_drv->paddr_devm = (void*)r_mem.start;
+    fb_drv->vaddr_devm = memremap(r_mem.start, resource_size(&r_mem), MEMREMAP_WB);
+    dev_info(dev, "Allocated reserved memory, vaddr: 0x%p, paddr: 0x%p\n", fb_drv->vaddr_devm, fb_drv->paddr_devm);
+    if(!fb_drv->vaddr_devm) 
+    {
+        dev_err(dev, "cannot map the mem\n");
+        goto error_handle1;
+    }
 
 	rc =alloc_chrdev_region(&fb_drv->devno,0, 1,DEVICE_NAME);
 	if (rc < 0)
@@ -278,16 +327,25 @@ if(!fb_drv->vaddr2)
     return 0;
 
 error_handle1:
-    iounmap(fb_drv->vaddr);
+    if (fb_drv->vaddr_bram) iounmap(fb_drv->vaddr_bram);
+    if (fb_drv->vaddr_data) iounmap(fb_drv->vaddr_data);
+    if (fb_drv->vaddr_devm) iounmap(fb_drv->vaddr_devm);
+
     return -EINVAL;
 
 error_handle2:
-    iounmap(fb_drv->vaddr);
+    if (fb_drv->vaddr_bram) iounmap(fb_drv->vaddr_bram);
+    if (fb_drv->vaddr_data) iounmap(fb_drv->vaddr_data);
+    if (fb_drv->vaddr_devm) iounmap(fb_drv->vaddr_devm);
+
     kfree(fb_drv);
     return -EINVAL;
 
 error_handle3:
-    iounmap(fb_drv->vaddr);
+    if (fb_drv->vaddr_bram) iounmap(fb_drv->vaddr_bram);
+    if (fb_drv->vaddr_data) iounmap(fb_drv->vaddr_data);
+    if (fb_drv->vaddr_devm) iounmap(fb_drv->vaddr_devm);
+
     kfree(fb_drv);
     cdev_del(&fb_drv->fb_cdev);
     return -EINVAL;
@@ -301,8 +359,11 @@ error_handle3:
 //    return -EINVAL;
 
 error_handle5:
+    if (fb_drv->vaddr_bram) iounmap(fb_drv->vaddr_bram);
+    if (fb_drv->vaddr_data) iounmap(fb_drv->vaddr_data);
+    if (fb_drv->vaddr_devm) iounmap(fb_drv->vaddr_devm);
+
     free_irq(fb_drv->irq,NULL);
-    iounmap(fb_drv->vaddr);
     kfree(fb_drv);
     class_destroy(fb_drv->fb_class);
     cdev_del(&fb_drv->fb_cdev);
@@ -316,7 +377,9 @@ static int fbga_drv_remove(struct platform_device *pdev)
 	//free_irq(lp->irq, lp);
 	device_destroy(fb_drv->fb_class,MKDEV(MAJOR(fb_drv->devno),0));
 
-    iounmap(fb_drv->vaddr);
+    if (fb_drv->vaddr_bram) iounmap(fb_drv->vaddr_bram);
+    if (fb_drv->vaddr_data) iounmap(fb_drv->vaddr_data);
+    if (fb_drv->vaddr_devm) iounmap(fb_drv->vaddr_devm);
 
     if(fb_drv){
 	    kfree(fb_drv);
