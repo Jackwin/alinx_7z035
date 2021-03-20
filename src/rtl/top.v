@@ -15,10 +15,6 @@ wire        interrupt;
 wire [3:0]  gpio;
 
 reg [27:0]  cnt;
-<<<<<<< HEAD
-
-=======
->>>>>>> 96c048c0dc786443c119c21e83b6559b9e304d7c
 //---------------------------------------------------
 // cfg ram signals
 // -------------------------------------------------- 
@@ -110,21 +106,6 @@ IBUFDS #(
     .IB(sys_clk_n) // Diff_n buffer input (connect directly to top-level port)
 );
 
-<<<<<<< HEAD
-always @(posedge sys_clk_200) begin
-    if (rst_200) begin
-        cnt <= 'h0;
-    end else begin
-        if (cnt == 28'hBEBC200) begin
-            cnt <= 'h0;
-        end else begin
-            cnt <= cnt + 1'd1;
-        end
-    end
-end
-
-assign led_tri_o[3] = cnt[27];
-=======
 
 //---------------------------------------------------
 // fpga device management
@@ -151,19 +132,15 @@ wire                        soft_rst;
 wire                        fclk_100;
 wire                        rst_fclk;
 reg                         led_ctrl;
->>>>>>> 96c048c0dc786443c119c21e83b6559b9e304d7c
 
 //--------------------------------------------
 // block design
 //--------------------------------------------
 
 assign led_tri_o[2:0] = gpio[2:0];
-<<<<<<< HEAD
-=======
 
 assign led_tri_o[3] = gpio[3] | led_ctrl;
 
->>>>>>> 96c048c0dc786443c119c21e83b6559b9e304d7c
 assign interrupt = gpio[2];
 
 system system_i (
@@ -221,11 +198,6 @@ system system_i (
     .cfg_ram_port_dout(cfg_ram_dout),
     .cfg_ram_port_en(cfg_ram_ena),
     .cfg_ram_port_rst(cfg_ram_rst),
-<<<<<<< HEAD
-    .cfg_ram_port_we(cfg_ram_byte_ena)
-);
-
-=======
     .cfg_ram_port_we(cfg_ram_byte_ena),
     
     //devive management
@@ -268,7 +240,6 @@ always @(posedge fclk_100) begin
     end
 end
 
->>>>>>> 96c048c0dc786443c119c21e83b6559b9e304d7c
 //--------------------------------------------
 // cfg_ram 
 //--------------------------------------------
@@ -430,11 +401,7 @@ always @(posedge sys_clk_200) begin
     end else begin
         if (dm_start_led1) begin
             dm_length <= 9'h080;
-<<<<<<< HEAD
-            dm_start_addr <= 'h0;
-=======
             dm_start_addr <= 32'h3000_0000;
->>>>>>> 96c048c0dc786443c119c21e83b6559b9e304d7c
         end else if (dm_start_vio_p) begin
             dm_length <= dm_length_vio;
             dm_start_addr<= dm_start_addr_vio;
