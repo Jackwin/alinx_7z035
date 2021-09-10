@@ -17,7 +17,9 @@
 #include <linux/of_address.h>
 #include <linux/irq.h>
 #include <linux/interrupt.h>
+
 #include "fbga_drv.h"
+#include "fbga_com.h"
 
 //unsigned myint = 0xdeadbeef;
 //char *mystr = "default";
@@ -27,6 +29,21 @@
 
 static struct fasync_struct *fb_async = NULL;
 struct fbga_drv *fb_drv = NULL;
+
+/*config and start  dma tx, irq callback will tell the result, no wait here*/ 
+static int _dma_config_tx(struct data_config_t *param) {
+    *(uint64_t *)(fb_drv->vaddr_devm + DMA_REGOFF_TXADDR) = fb_drv->paddr_data + param->addr_off;
+    *(uint64_t *)(fb_drv->vaddr_devm + DMA_REGOFF_TXLEN) = param->data_len;
+    uint32_t body_len = 870;
+    uint32_t body_num = param->data_len / 870;
+    uint32_t tail_len = param->data_len % 870;
+    *(uint64_t *)(fb_drv->vaddr_devm + DMA_REGOFF_TXTB) = tail_len << 32 | body_len;
+    *(uint64_t *)(fb_drv->vaddr_devm + DMA_REGOFF_TXEN) = 0;
+    return 0;
+}
+static int _dma_config_rx(struct data_config_t *param) {
+    *(uint64_t *)(fb_drv->vaddr_devm + DMA_REGOFF_RXADDR) = fb_drv->paddr_data + param->addr_off;
+}
 
 int fbga_drv_open(struct inode * inode, struct file *filp)
 {
@@ -103,6 +120,7 @@ static long fbga_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
     void __user *argp = (void __user*)arg;
     struct devm_data devmd;
+    struct data_config_t param;
     int32_t reg;
     switch(cmd)
     {
@@ -125,6 +143,14 @@ static long fbga_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
             copy_from_user((char*)(&devmd), argp, sizeof(devmd));
             reg = fb_drv->vaddr_devm + devmd.reg_off;
             iowrite32(devmd.val, reg);
+            break;
+        case IOCMD_DMA_CONFIGTX:
+            copy_from_user((char*)(&param), argp, sizeof(param));
+            _dma_config_tx(&param);
+            break;
+        case IOCMD_DMA_CONFIGRX:
+            copy_from_user((char*)(&param), argp, sizeof(param));
+            _dma_config_rx(&param);
             break;
         default :
             return -EINVAL;

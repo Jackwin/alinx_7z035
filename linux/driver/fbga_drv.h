@@ -1,14 +1,10 @@
+#ifndef __FBGA_DRV_H__
+#define __FBGA_DRV_H__
+
 #define DEVICE_NAME "fbga_drv"
 
 #define WR_OP 0
 #define RD_OP 1
-
-#define CASE0 0
-#define CASE1 1
-#define CASE2 2
-
-#define IOCMD_DEVM_GET  0x300
-#define IOCMD_DEVM_SET  0x301
 
 #define MAX_CONFIG_RAM  0xFFF
 
@@ -33,8 +29,6 @@ struct memory_data {
 	atomic_t refcnt;
 };
 
-struct devm_data {
-    int32_t reg_off;
-    int32_t val;
-};
+
+#endif
 
